@@ -364,13 +364,13 @@ def Process_sounding_data(dates):
 dates = Read_dates()
 
 #Process LES output
-#Process_LES(dates)
+Process_LES(dates)
 
 #Process surface fields
-#Process_surface_fields(dates)
+Process_surface_fields(dates)
 
 #Process sounding data
-#Process_sounding_data(dates)
+Process_sounding_data(dates)
 
 #Compute surface field stats
 Compute_Surface_Fields_Stats(dates)
