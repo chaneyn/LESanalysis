@@ -103,15 +103,15 @@ def Process_surface_fields(dates):
  for date in dates:
     print(date)
     db[date] = {}
-    data = []
-    for hour in range(15,22):
-     file = '/stor/soteria/hydro/shared/lasso_for_nate/dx0250nx0401/jsssh_bdy_02_%d-%02d-%02d-%2d-00' % (date.year,date.month,date.day,hour)
-     #file = '/stor/soteria/hydro/shared/lasso_for_nate/dx0250nx0401/jsslw_bdy_02_%d-%02d-%02d-%2d-00' % (date.year,date.month,date.day,hour)
-     fp = open(file)
-     data.append(np.reshape(np.loadtxt(file),(401,401)))
-    data = np.array(data)
-    data = np.mean(data,axis=0)
-    db[date]['SH'] = data
+    for var in ['sh','lw','lh']:
+     data = []
+     for hour in range(15,22):
+      file = '/stor/soteria/hydro/shared/lasso_for_nate/dx0250nx0401/jss%s_bdy_02_%d-%02d-%02d-%2d-00' % (var,date.year,date.month,date.day,hour)
+      fp = open(file)
+      data.append(np.reshape(np.loadtxt(file),(401,401)))
+     data = np.array(data)
+     data = np.mean(data,axis=0)
+     db[date][var] = data
  #Save the data
  file = 'workspace/SurfaceFields.pck'
  pickle.dump(db,open(file,'wb'))
@@ -228,97 +228,101 @@ def calculate_anisotropic_covariance_functions(data,hs,dx=250):
 
 def Compute_Surface_Fields_Stats(dates):
 
+ #Spacing for covariance function
+ hs = np.array([0,250,1000,2000,3000,4000,5000,7500,10000,12500,15000,17500,20000,25000,30000,35000,40000,45000,50000])
+
  #Read in sounding info
  file = 'workspace/LASSOsoundings.pck'
  odb = pickle.load(open(file,'rb'))
 
- hs = np.array([0,250,1000,2000,3000,4000,5000,7500,10000,12500,15000,17500,20000,25000,30000,35000,40000,45000,50000])
- odb['SH_Qew'] = []
- odb['SH_Qns'] = []
- odb['SH_Qswne'] = []
- odb['SH_Qnwse'] = []
- odb['SH_var'] = []
- odb['SH_mean'] = []
- odb['SH_data'] = []
- odb['SH_skew'] = []
- odb['SH_kurt'] = []
- db = pickle.load(open('workspace/SurfaceFields.pck','rb'))
- for date in dates:
-  data = db[date]['SH']
-  #calculate anisotropic covariance functions
-  (Qns,Qew,Qswne,Qnwse) = calculate_anisotropic_covariance_functions(data,hs,dx=250)
-  #save info
-  odb['SH_Qns'].append(Qns)
-  odb['SH_Qew'].append(Qew)
-  odb['SH_Qswne'].append(Qswne)
-  odb['SH_Qnwse'].append(Qnwse)
-  odb['SH_var'].append(np.var(data))
-  odb['SH_mean'].append(np.mean(data))
-  odb['SH_skew'].append(scipy.stats.skew(data.flatten()))
-  odb['SH_kurt'].append(scipy.stats.kurtosis(data.flatten()))
- for var in odb:
-  odb[var] = np.array(odb[var])
-
- #Compute covariance functions parallel and perpendicular to the geostrophic wind
- #Parallel
- Q0 = []
- for i in range(odb['theta'].size):
-     theta = np.degrees(odb['theta'][i])
-     if ((theta > 0) & (theta <= 45)):
-         dt = np.radians(theta - 0)
-         Q0.append(dt/(np.pi/4)*odb['SH_Qswne'][i,:] + (1-dt/(np.pi/4))*odb['SH_Qew'][i,:])
-     elif ((theta > 45) & (theta <= 90)):
-         dt = np.radians(theta - 45)
-         Q0.append(dt/(np.pi/4)*odb['SH_Qns'][i,:] + (1-dt/(np.pi/4))*odb['SH_Qswne'][i,:])
-     elif (theta > 90) & (theta <= 135):
-         dt = np.radians(theta - 90)
-         Q0.append(dt/(np.pi/4)*odb['SH_Qnwse'][i,:] + (1-dt/(np.pi/4))*odb['SH_Qns'][i,:])
-     elif (theta > 135) & (theta <= 180):
-         dt = np.radians(theta - 135)
-         Q0.append(dt/(np.pi/4)*odb['SH_Qew'][i,:] + (1-dt/(np.pi/4))*odb['SH_Qnwse'][i,:])
- Q0 = np.array(Q0)
- odb['SH_Q0'] = np.copy(Q0)
- #Perpendicular
- Q90 = []
- for i in range(odb['theta'].size):
-     theta = 90+np.degrees(odb['theta'][i])
-     if theta > 180:
-         theta = theta - 180
-     if ((theta > 0) & (theta <= 45)):
-         dt = np.radians(theta - 0)
-         Q90.append(dt/(np.pi/4)*odb['SH_Qswne'][i] + (1-dt/(np.pi/4))*odb['SH_Qew'][i])
-     elif ((theta > 45) & (theta <= 90)):
-         dt = np.radians(theta - 45)
-         Q90.append(dt/(np.pi/4)*odb['SH_Qns'][i] + (1-dt/(np.pi/4))*odb['SH_Qswne'][i])
-     elif (theta > 90) & (theta <= 135):
-         dt = np.radians(theta - 90)
-         Q90.append(dt/(np.pi/4)*odb['SH_Qnwse'][i] + (1-dt/(np.pi/4))*odb['SH_Qns'][i])
-     elif (theta > 135) & (theta <= 180):
-         dt = np.radians(theta - 135)
-         Q90.append(dt/(np.pi/4)*odb['SH_Qew'][i] + (1-dt/(np.pi/4))*odb['SH_Qnwse'][i])
- Q90 = np.array(Q90)
- odb['SH_Q90'] = np.copy(Q90)
-
- #Calculate correlation lengths
- for thld in [0.25,0.50,0.75]:
-  L0 = []
-  L90 = []
-  for i in range(odb['SH_Q0'].shape[0]):
-      hsnew = np.linspace(0,50000,2500)
-      #parallel to flow
-      sh_q0_new = np.interp(hsnew,hs,odb['SH_Q0'][i,:])
-      ins = sh_q0_new <= thld*sh_q0_new[0]
-      if np.sum(ins) == 0:L0.append(50.0) #km
-      else: L0.append(hsnew[ins][0]/1000.0) #km
-      #perpendicular to flow
-      sh_q90_new = np.interp(hsnew,hs,odb['SH_Q90'][i,:])
-      ins = sh_q90_new <= thld*sh_q90_new[0]
-      if np.sum(ins) == 0:L90.append(50.0) #km
-      else: L90.append(hsnew[ins][0]/1000.0) #km
-  L0 = np.array(L0)
-  odb['SH_L0_%.2f' % thld] = np.copy(L0)
-  L90 = np.array(L90)
-  odb['SH_L90_%.2f' % thld] = np.copy(L90)
+ for var in ['sh','lh','lw']:
+  print(var)
+  odb['%s_Qew' % var] = []
+  odb['%s_Qns' % var] = []
+  odb['%s_Qswne' % var] = []
+  odb['%s_Qnwse' % var] = []
+  odb['%s_var' % var] = []
+  odb['%s_mean' % var] = []
+  odb['%s_data' % var] = []
+  odb['%s_skew' % var] = []
+  odb['%s_kurt' % var] = []
+  db = pickle.load(open('workspace/SurfaceFields.pck','rb'))
+  for date in dates:
+   data = db[date][var]
+   #calculate anisotropic covariance functions
+   (Qns,Qew,Qswne,Qnwse) = calculate_anisotropic_covariance_functions(data,hs,dx=250)
+   #save info
+   odb['%s_Qns' % var].append(Qns)
+   odb['%s_Qew' % var].append(Qew)
+   odb['%s_Qswne' % var].append(Qswne)
+   odb['%s_Qnwse' % var].append(Qnwse)
+   odb['%s_var' % var].append(np.var(data))
+   odb['%s_mean' % var].append(np.mean(data))
+   odb['%s_skew' % var].append(scipy.stats.skew(data.flatten()))
+   odb['%s_kurt' % var].append(scipy.stats.kurtosis(data.flatten()))
+  for v in odb:
+   odb[v] = np.array(odb[v])
+ 
+  #Compute covariance functions parallel and perpendicular to the geostrophic wind
+  #Parallel
+  Q0 = []
+  for i in range(odb['theta'].size):
+      theta = np.degrees(odb['theta'][i])
+      if ((theta > 0) & (theta <= 45)):
+          dt = np.radians(theta - 0)
+          Q0.append(dt/(np.pi/4)*odb['%s_Qswne' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qew' % var][i,:])
+      elif ((theta > 45) & (theta <= 90)):
+          dt = np.radians(theta - 45)
+          Q0.append(dt/(np.pi/4)*odb['%s_Qns' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qswne' % var][i,:])
+      elif (theta > 90) & (theta <= 135):
+          dt = np.radians(theta - 90)
+          Q0.append(dt/(np.pi/4)*odb['%s_Qnwse' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qns' % var][i,:])
+      elif (theta > 135) & (theta <= 180):
+          dt = np.radians(theta - 135)
+          Q0.append(dt/(np.pi/4)*odb['%s_Qew' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qnwse' % var][i,:])
+  Q0 = np.array(Q0)
+  odb['%s_Q0' % var] = np.copy(Q0)
+  #Perpendicular
+  Q90 = []
+  for i in range(odb['theta'].size):
+      theta = 90+np.degrees(odb['theta'][i])
+      if theta > 180:
+          theta = theta - 180
+      if ((theta > 0) & (theta <= 45)):
+          dt = np.radians(theta - 0)
+          Q90.append(dt/(np.pi/4)*odb['%s_Qswne' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qew' % var][i])
+      elif ((theta > 45) & (theta <= 90)):
+          dt = np.radians(theta - 45)
+          Q90.append(dt/(np.pi/4)*odb['%s_Qns' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qswne' % var][i])
+      elif (theta > 90) & (theta <= 135):
+          dt = np.radians(theta - 90)
+          Q90.append(dt/(np.pi/4)*odb['%s_Qnwse' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qns' % var][i])
+      elif (theta > 135) & (theta <= 180):
+          dt = np.radians(theta - 135)
+          Q90.append(dt/(np.pi/4)*odb['%s_Qew' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qnwse' % var][i])
+  Q90 = np.array(Q90)
+  odb['%s_Q90' % var] = np.copy(Q90)
+ 
+  #Calculate correlation lengths
+  for thld in [0.25,0.50,0.75]:
+   L0 = []
+   L90 = []
+   for i in range(odb['%s_Q0' % var].shape[0]):
+       hsnew = np.linspace(0,50000,2500)
+       #parallel to flow
+       sh_q0_new = np.interp(hsnew,hs,odb['%s_Q0' % var][i,:])
+       ins = sh_q0_new <= thld*sh_q0_new[0]
+       if np.sum(ins) == 0:L0.append(50.0) #km
+       else: L0.append(hsnew[ins][0]/1000.0) #km
+       #perpendicular to flow
+       sh_q90_new = np.interp(hsnew,hs,odb['%s_Q90' % var][i,:])
+       ins = sh_q90_new <= thld*sh_q90_new[0]
+       if np.sum(ins) == 0:L90.append(50.0) #km
+       else: L90.append(hsnew[ins][0]/1000.0) #km
+   L0 = np.array(L0)
+   odb['%s_L0_%.2f' % (var,thld)] = np.copy(L0)
+   L90 = np.array(L90)
+   odb['%s_L90_%.2f' % (var,thld)] = np.copy(L90)
  
  #Save the data
  file = 'workspace/SFstats.pck'
@@ -360,13 +364,13 @@ def Process_sounding_data(dates):
 dates = Read_dates()
 
 #Process LES output
-#rocess_LES(dates)
+#Process_LES(dates)
 
 #Process surface fields
-Process_surface_fields(dates)
+#Process_surface_fields(dates)
 
 #Process sounding data
-Process_sounding_data(dates)
+#Process_sounding_data(dates)
 
 #Compute surface field stats
 Compute_Surface_Fields_Stats(dates)
