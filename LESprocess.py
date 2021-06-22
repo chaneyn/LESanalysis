@@ -235,7 +235,7 @@ def Compute_Surface_Fields_Stats(dates):
  file = 'workspace/LASSOsoundings.pck'
  odb = pickle.load(open(file,'rb'))
 
- for var in ['sh','lh','lw']:
+ for var in ['sh','lh','lw','ef']:
   print(var)
   odb['%s_Qew' % var] = []
   odb['%s_Qns' % var] = []
@@ -248,7 +248,10 @@ def Compute_Surface_Fields_Stats(dates):
   odb['%s_kurt' % var] = []
   db = pickle.load(open('workspace/SurfaceFields.pck','rb'))
   for date in dates:
-   data = db[date][var]
+   if var == 'ef':
+    data = db[date]['lh']/(db[date]['lh']+db[date]['sh'])
+   else:
+    data = db[date][var]
    #calculate anisotropic covariance functions
    (Qns,Qew,Qswne,Qnwse) = calculate_anisotropic_covariance_functions(data,hs,dx=250)
    #save info
@@ -266,40 +269,48 @@ def Compute_Surface_Fields_Stats(dates):
   #Compute covariance functions parallel and perpendicular to the geostrophic wind
   #Parallel
   Q0 = []
-  for i in range(odb['theta'].size):
-      theta = np.degrees(odb['theta'][i])
+  for i in range(odb['theta'].shape[0]):
+   tmp = []
+   for j in range(odb['theta'].shape[1]):
+      theta = np.degrees(odb['theta'][i,j])
       if ((theta > 0) & (theta <= 45)):
           dt = np.radians(theta - 0)
-          Q0.append(dt/(np.pi/4)*odb['%s_Qswne' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qew' % var][i,:])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qswne' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qew' % var][i,:])
       elif ((theta > 45) & (theta <= 90)):
           dt = np.radians(theta - 45)
-          Q0.append(dt/(np.pi/4)*odb['%s_Qns' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qswne' % var][i,:])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qns' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qswne' % var][i,:])
       elif (theta > 90) & (theta <= 135):
           dt = np.radians(theta - 90)
-          Q0.append(dt/(np.pi/4)*odb['%s_Qnwse' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qns' % var][i,:])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qnwse' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qns' % var][i,:])
       elif (theta > 135) & (theta <= 180):
           dt = np.radians(theta - 135)
-          Q0.append(dt/(np.pi/4)*odb['%s_Qew' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qnwse' % var][i,:])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qew' % var][i,:] + (1-dt/(np.pi/4))*odb['%s_Qnwse' % var][i,:])
+   tmp = np.array(tmp)
+   Q0.append(tmp)
   Q0 = np.array(Q0)
   odb['%s_Q0' % var] = np.copy(Q0)
   #Perpendicular
   Q90 = []
-  for i in range(odb['theta'].size):
-      theta = 90+np.degrees(odb['theta'][i])
+  for i in range(odb['theta'].shape[0]):
+   tmp = []
+   for j in range(odb['theta'].shape[1]):
+      theta = 90+np.degrees(odb['theta'][i,j])
       if theta > 180:
           theta = theta - 180
       if ((theta > 0) & (theta <= 45)):
           dt = np.radians(theta - 0)
-          Q90.append(dt/(np.pi/4)*odb['%s_Qswne' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qew' % var][i])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qswne' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qew' % var][i])
       elif ((theta > 45) & (theta <= 90)):
           dt = np.radians(theta - 45)
-          Q90.append(dt/(np.pi/4)*odb['%s_Qns' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qswne' % var][i])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qns' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qswne' % var][i])
       elif (theta > 90) & (theta <= 135):
           dt = np.radians(theta - 90)
-          Q90.append(dt/(np.pi/4)*odb['%s_Qnwse' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qns' % var][i])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qnwse' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qns' % var][i])
       elif (theta > 135) & (theta <= 180):
           dt = np.radians(theta - 135)
-          Q90.append(dt/(np.pi/4)*odb['%s_Qew' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qnwse' % var][i])
+          tmp.append(dt/(np.pi/4)*odb['%s_Qew' % var][i] + (1-dt/(np.pi/4))*odb['%s_Qnwse' % var][i])
+   tmp = np.array(tmp)
+   Q90.append(tmp)
   Q90 = np.array(Q90)
   odb['%s_Q90' % var] = np.copy(Q90)
  
@@ -310,21 +321,21 @@ def Compute_Surface_Fields_Stats(dates):
    L0 = []
    L90 = []
    for i in range(odb['%s_Q0' % var].shape[0]):
+    tmp0,tmp90 = [],[]
+    for j in range(odb['%s_Q0' % var].shape[1]):
        hsnew = np.linspace(0,50000,2500)
        #parallel to flow
-       sh_q0_new = np.interp(hsnew,hs,odb['%s_Q0' % var][i,:])
-       #corr = sh_q0_new/sh_q0_new[0]
-       #ins = (corr <= thlds[ithld-1]) & (corr >= thlds[ithld])
-       #L0.append(np.abs(hsnew[ins][-1]-hsnew[ins][0]))
-       #
+       sh_q0_new = np.interp(hsnew,hs,odb['%s_Q0' % var][i,j,:])
        ins = sh_q0_new <= thld*sh_q0_new[0]
-       if np.sum(ins) == 0:L0.append(50.0) #km
-       else: L0.append(hsnew[ins][0]/1000.0) #km
+       if np.sum(ins) == 0:tmp0.append(50.0) #km
+       else: tmp0.append(hsnew[ins][0]/1000.0) #km
        #perpendicular to flow
-       sh_q90_new = np.interp(hsnew,hs,odb['%s_Q90' % var][i,:])
+       sh_q90_new = np.interp(hsnew,hs,odb['%s_Q90' % var][i,j,:])
        ins = sh_q90_new <= thld*sh_q90_new[0]
-       if np.sum(ins) == 0:L90.append(50.0) #km
-       else: L90.append(hsnew[ins][0]/1000.0) #km
+       if np.sum(ins) == 0:tmp90.append(50.0) #km
+       else: tmp90.append(hsnew[ins][0]/1000.0) #km
+    L0.append(tmp0)
+    L90.append(tmp90)
    L0 = np.array(L0)
    odb['%s_L0_%.2f' % (var,thld)] = np.copy(L0)
    L90 = np.array(L90)
@@ -346,7 +357,24 @@ def Process_sounding_data(dates):
     file = '/stor/soteria/hydro/shared/lasso_for_nate/lasso_download/sgp%d%02d%02d/config/input_sounding' % (date.year,date.month,date.day)
     data = np.loadtxt(file,skiprows=1)
     z = data[:,0]
-    dz = z[1:]-z[:-1]
+    #Calculate ws and theta for 1450 m bins
+    minz = 0 #m
+    maxz = 1450 #m
+    ws_tmp,theta_tmp = [],[]
+    for i in range(10):
+     #iz = (z[1:] > minz) & (z[1:] <= maxz)
+     iz = (z > minz) & (z <= maxz)
+     u = np.mean(data[iz,-2])
+     v = np.mean(data[iz,-1])
+     ws = (u**2 + v**2)**0.5
+     theta = np.arctan2(np.abs(v),u)
+     ws_tmp.append(ws)
+     theta_tmp.append(theta)
+     minz += 1450 #m
+     maxz += 1450 #m
+    db['ws'].append(np.array(ws_tmp))
+    db['theta'].append(np.array(theta_tmp))
+    '''dz = z[1:]-z[:-1]
     zav = (z[1:] + z[1:])/2
     #iz = (z[1:] >= 0) & (z[1:] <= 2000)#20000)
     iz = (z[1:] >= 0) & (z[1:] <= 14500)#20000)
@@ -362,7 +390,7 @@ def Process_sounding_data(dates):
     #Calculate magnitude
     db['ws'].append((ug**2 + vg**2)**0.5)
     db['theta'].append(np.arctan2(vg,ug)) #only 0-180 degrees (on purpose)
-    print(date,np.degrees(np.arctan2(vg,ug)))
+    print(date,np.degrees(np.arctan2(vg,ug)))'''
  for var in db:
     db[var] = np.array(db[var])
  #Save the data
@@ -381,7 +409,7 @@ dates = Read_dates()
 #Process_surface_fields(dates)
 
 #Process sounding data
-Process_sounding_data(dates)
+#Process_sounding_data(dates)
 
 #Compute surface field stats
 Compute_Surface_Fields_Stats(dates)
