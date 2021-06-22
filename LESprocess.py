@@ -304,13 +304,19 @@ def Compute_Surface_Fields_Stats(dates):
   odb['%s_Q90' % var] = np.copy(Q90)
  
   #Calculate correlation lengths
-  for thld in [0.25,0.50,0.75]:
+  thlds = [1.0,0.75,0.50,0.25]
+  for ithld in range(1,4):#
+   thld = thlds[ithld]
    L0 = []
    L90 = []
    for i in range(odb['%s_Q0' % var].shape[0]):
        hsnew = np.linspace(0,50000,2500)
        #parallel to flow
        sh_q0_new = np.interp(hsnew,hs,odb['%s_Q0' % var][i,:])
+       #corr = sh_q0_new/sh_q0_new[0]
+       #ins = (corr <= thlds[ithld-1]) & (corr >= thlds[ithld])
+       #L0.append(np.abs(hsnew[ins][-1]-hsnew[ins][0]))
+       #
        ins = sh_q0_new <= thld*sh_q0_new[0]
        if np.sum(ins) == 0:L0.append(50.0) #km
        else: L0.append(hsnew[ins][0]/1000.0) #km
@@ -341,17 +347,22 @@ def Process_sounding_data(dates):
     data = np.loadtxt(file,skiprows=1)
     z = data[:,0]
     dz = z[1:]-z[:-1]
-    iz = (z[1:] >= 2000) & (z[1:] <= 20000)#20000)
     zav = (z[1:] + z[1:])/2
+    #iz = (z[1:] >= 0) & (z[1:] <= 2000)#20000)
+    iz = (z[1:] >= 0) & (z[1:] <= 14500)#20000)
     f = dz[iz]/np.sum(dz[iz])
     u = ((data[1:,-2] + data[0:-1,-2])/2)[iz]
     v = ((data[1:,-1] + data[0:-1,-1])/2)[iz]
+    ws = (u**2 + v**2)**0.5
+    f = ws**2/np.sum(ws**2)
+    #f = dz/np.sum(dz[iz])#ws**2/np.sum(ws**2)
+    theta = np.arctan2(np.abs(v),u)
     ug = np.sum(f*u)
     vg = np.abs(np.sum(f*v))
     #Calculate magnitude
     db['ws'].append((ug**2 + vg**2)**0.5)
     db['theta'].append(np.arctan2(vg,ug)) #only 0-180 degrees (on purpose)
-    print(date,np.arctan2(vg,ug),np.degrees(np.arctan2(vg,ug)))
+    print(date,np.degrees(np.arctan2(vg,ug)))
  for var in db:
     db[var] = np.array(db[var])
  #Save the data
@@ -364,10 +375,10 @@ def Process_sounding_data(dates):
 dates = Read_dates()
 
 #Process LES output
-Process_LES(dates)
+#Process_LES(dates)
 
 #Process surface fields
-Process_surface_fields(dates)
+#Process_surface_fields(dates)
 
 #Process sounding data
 Process_sounding_data(dates)
